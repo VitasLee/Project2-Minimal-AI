@@ -47,8 +47,43 @@ class BTSolver:
         Return: a tuple of a dictionary and a bool. The dictionary contains all MODIFIED variables, mapped to their MODIFIED domain.
                 The bool is true if assignment is consistent, false otherwise.
     """
-    def forwardChecking ( self ):
-        return ({},False)
+    def forwardChecking ( self ): 
+        # If current assignment violates constraints, fail immediately
+        if not self.assignmentsCheck():
+            return ({},False)    
+
+        modified = {}
+        # Push each variable to the trail at most once before modifying it
+        pushed = set()
+        constraints = self.network.getModifiedConstraints()
+ 
+        for constraint in constraints:
+            for assigned_var in constraint.vars:
+                if not assigned_var.isAssigned():
+                    continue
+  
+                curr_val = assigned_var.getAssignment()
+                
+                for neighbor in constraint.vars:
+                    # Don't prune the assigned source variable itself
+                    if neighbor is assigned_var:
+                        continue
+                    # Violation: two assigned vars in the same constraint have the same value
+                    if neighbor.isAssigned():
+                        if neighbor.getAssignment() == curr_val:
+                            return (modified,False)
+                        continue 
+                    # If neighbor is unassigned, prune the assigned value from its domain
+                    if neighbor.getDomain().contains(curr_val):
+                        if neighbor not in pushed:
+                            self.trail.push(neighbor)
+                            pushed.add(neighbor)
+                        neighbor.removeValueFromDomain(curr_val)
+                        if neighbor.getDomain().isEmpty():
+                            return (modified,False) 
+                        # Save a copy of the neighbor's domain after pruning
+                        modified[neighbor] = Domain.Domain(list(neighbor.getValues()))
+        return (modified, True)
 
     # =================================================================
 	# Arc Consistency
